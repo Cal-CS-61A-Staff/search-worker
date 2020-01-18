@@ -11,6 +11,7 @@ def index():
 
 @app.route("/insert/piazza")
 def insert():
+    id =
     resp = requests.post("http://localhost:9200/piazza/_doc/{}".format(id), json={
         "name": "Bob Cat",
     })
