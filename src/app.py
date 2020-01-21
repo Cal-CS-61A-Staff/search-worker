@@ -13,6 +13,42 @@ PIAZZA_INDEX = "piazza"
 RESOURCE_INDEX = "resources"
 
 
+config = {
+    "settings": {
+        "analysis": {
+            "filter": {
+                "english_stop": {"type": "stop", "stopwords": "_english_"},
+                "english_keywords": {"type": "keyword_marker", "keywords": ["example"]},
+                "english_stemmer": {"type": "stemmer", "language": "english"},
+                "english_possessive_stemmer": {
+                    "type": "stemmer",
+                    "language": "possessive_english",
+                },
+                "zero_prefix_remover": {
+                    "type": "pattern_replace",
+                    "pattern": r"0([0-9])+",
+                    "replacement": r"$1",
+                },
+            },
+            "analyzer": {
+                "default": {
+                    "tokenizer": "standard",
+                    "char_filter": ["html_strip"],
+                    "filter": [
+                        "english_possessive_stemmer",
+                        "lowercase",
+                        "english_stop",
+                        "english_keywords",
+                        "english_stemmer",
+                        "zero_prefix_remover",
+                    ],
+                }
+            },
+        }
+    }
+}
+
+
 @app.route("/")
 def index():
     return redirect("https://cs61a.org")
@@ -25,25 +61,43 @@ def secure(f):
         if secret != os.environ["SECRET"]:
             abort(401)
         return f(*args, **kwargs)
+
     return wrapped
+
+
+@app.route("/clear/piazza", methods=["POST"])
+@secure
+def clear_piazza():
+    requests.delete(f"{ELASTIC_SEARCH}/{PIAZZA_INDEX}").json()
+    return jsonify(
+        requests.put(f"{ELASTIC_SEARCH}/{PIAZZA_INDEX}", json=config).json()
+    )
 
 
 @app.route("/insert/piazza", methods=["POST"])
 @secure
 def insert_piazza():
-    post = request.json["data"]
-    id = post["id"]
-    resp = requests.post(f"{ELASTIC_SEARCH}/{PIAZZA_INDEX}/_doc/{id}", json=post)
-    return jsonify(resp.json())
+    posts = request.json["data"]
+    for post in posts:
+        id = post["id"]
+        requests.post(f"{ELASTIC_SEARCH}/{PIAZZA_INDEX}/_doc/{id}", json=post)
+    return jsonify({"success": True})
+
+
+@app.route("/clear/resources", methods=["POST"])
+@secure
+def clear_resources():
+    requests.delete(f"{ELASTIC_SEARCH}/{RESOURCE_INDEX}").json()
+    return jsonify(
+        requests.put(f"{ELASTIC_SEARCH}/{RESOURCE_INDEX}", json=config).json()
+    )
 
 
 @app.route("/insert/resources", methods=["POST"])
 @secure
 def insert_resources():
     resources = request.json["resources"]
-    requests.delete(f"{ELASTIC_SEARCH}/{RESOURCE_INDEX}")
     for resource in resources:
-        print(resource)
         requests.post(f"{ELASTIC_SEARCH}/{RESOURCE_INDEX}/_doc", json=resource)
     return jsonify({"success": True})
 
